@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+uploads/**/*.jpg
+uploads/**/*.jpeg
+uploads/**/*.png
+uploads/**/*.webp
+uploads/**/*.gif
+!uploads/**/.gitkeep
