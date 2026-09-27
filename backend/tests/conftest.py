@@ -12,14 +12,33 @@ from fastapi.testclient import TestClient
 
 TEST_DB_PATH = pathlib.Path("test.db")
 
+# One-time cleanup before the app/engine is ever imported — if a stale
+# test.db from an older local run (possibly with an outdated schema) is
+# lying around, remove it so we start from a clean slate. CI always starts
+# from a fresh checkout so this is a no-op there.
+if TEST_DB_PATH.exists():
+    TEST_DB_PATH.unlink()
+
 
 @pytest.fixture(autouse=True)
 def _fresh_database():
-    """Every test gets a brand-new, empty database file — the app's own
-    startup event (Base.metadata.create_all) recreates the schema in it
-    when the TestClient's `with` block enters below."""
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
+    """Resets the schema between tests via the app's own long-lived engine,
+    rather than deleting/recreating the SQLite file on disk. Deleting the
+    file was the original approach here, but it caused 'attempt to write a
+    readonly database' errors: the engine's connection pool kept a cached
+    connection handle pointing at the just-deleted file, which SQLite
+    doesn't tolerate well. Dropping and recreating tables through the same
+    engine avoids ever touching the file at the OS level after the first
+    test starts."""
+    from app.database import Base, engine
+
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _cleanup_test_db_file():
     yield
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
