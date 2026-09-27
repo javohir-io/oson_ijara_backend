@@ -1,16 +1,20 @@
 # OsonIjara Backend
 
+![Backend CI](https://github.com/javohir-io/oson_ijara_backend/actions/workflows/ci.yml/badge.svg)
+
 FastAPI + PostgreSQL backend for the OsonIjara Flutter app — JWT auth, property
-listings with filters, image uploads (avatars + property photos), and
-bookmarks, all Dockerized.
+listings with filters, image uploads (avatars + property photos, optionally to
+Cloudflare R2), real-time chat over WebSockets, a minimal admin role, and an
+automated pytest suite running in CI — all Dockerized.
 
 ## Stack (and why)
 - **FastAPI** — fast to build, async-ready, and gives you interactive docs
   (`/docs`) for free alongside the Postman collection.
-- **PostgreSQL** — solid relational fit for users/properties/images/bookmarks.
+- **PostgreSQL** — solid relational fit for users/properties/images/bookmarks/messages.
 - **SQLAlchemy 2.0** — ORM; tables are auto-created on startup for this MVP
   (swap in Alembic migrations once the schema needs to evolve safely).
 - **JWT (python-jose) + passlib/bcrypt** — stateless auth, hashed passwords.
+- **WebSockets (built into uvicorn)** — real-time chat, no extra broker needed.
 - **Docker Compose** — spins up the API, Postgres, and Adminer (a lightweight
   DB browser) together.
 
@@ -61,6 +65,80 @@ List properties → Toggle save / bookmark → My saved listings**.
 | POST | /properties/{id}/images | ✓ (owner) | Upload one or more photos (`files`) |
 | DELETE | /properties/{id}/images/{image_id} | ✓ (owner) | Remove one photo |
 | POST | /properties/{id}/save | ✓ | Toggle bookmark |
+| GET | /messages/conversations | ✓ | List your conversations (last message + unread count) |
+| GET | /messages/with/{user_id} | ✓ | Full message history with one user (marks it read) |
+| POST | /messages | ✓ | Send a message (REST fallback; also works via WebSocket) |
+| WS | /messages/ws?token=... | ✓ (query param) | Live chat socket — see "Real-time chat" below |
+| GET | /admin/stats | ✓ (admin) | User/property/message/bookmark counts |
+| GET | /admin/users | ✓ (admin) | List all users |
+| DELETE | /admin/users/{id} | ✓ (admin) | Remove a user |
+| DELETE | /admin/properties/{id} | ✓ (admin) | Remove any listing, regardless of owner |
+
+## Real-time chat
+Chat is a WebSocket at `/messages/ws`. Browsers can't set custom headers on a
+WebSocket handshake, so auth goes in the query string instead of an
+`Authorization` header:
+
+```
+wss://your-backend/messages/ws?token=<your JWT>
+```
+
+Send JSON frames shaped like `{"receiver_id": 5, "content": "Salom!", "property_id": 12}`
+(the last field is optional). You'll get the same shape echoed back once it's
+saved, and so will the recipient if they're connected too. Messages are
+always persisted regardless of whether the recipient is online — `GET
+/messages/with/{user_id}` and `/messages/conversations` cover history and the
+chat-list view for whenever they check back in. If the socket isn't
+connected, `POST /messages` does the exact same thing over plain REST as a
+fallback.
+
+## Admin role
+There's no signup flow for admins on purpose — promote someone by hand, the
+same way an operator would:
+
+```sql
+UPDATE users SET is_admin = true WHERE email = 'you@example.com';
+```
+
+Run that in Adminer's SQL editor (or Neon's), then log back in (or just call
+`/auth/me` again) to pick up an `is_admin: true` JWT-backed session. Once
+promoted, `/admin/stats`, `/admin/users`, and `/admin/properties/{id}` (delete
+any listing, not just your own) are all available. There's deliberately no
+custom admin UI — Adminer (already running via docker-compose) and this API's
+own `/docs` cover everything a small admin panel would, without building one.
+
+## Object storage (optional — fixes photos not surviving a restart)
+By default, uploaded photos are saved to local disk (`backend/uploads/`),
+which is fine locally but doesn't survive a restart on hosts with no
+persistent disk, like Render's free tier. Set these four environment
+variables (locally in `.env`, or in Render's dashboard) to switch to
+Cloudflare R2 instead — everything else about the API stays identical, it's a
+drop-in swap:
+
+```
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=...
+R2_PUBLIC_URL=https://pub-xxxxxxxx.r2.dev
+```
+
+To set this up: create a free Cloudflare account, go to R2, create a bucket,
+enable public access for it (or attach a custom domain) to get the
+`R2_PUBLIC_URL`, then create an API token scoped to that bucket for the
+access key ID/secret. Leave any of the four blank and it silently falls back
+to local disk storage — nothing else needs to change.
+
+## Testing
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest -v
+```
+Tests run against a throwaway SQLite file (not your real Postgres), recreated
+fresh for every single test, so it's safe to run anytime. The same command
+runs automatically on every push via GitHub Actions (`.github/workflows/ci.yml`)
+— that's the badge at the top of this file.
 
 ## Next steps
 - Add Alembic migrations once you need to change the schema without wiping data.
@@ -75,9 +153,9 @@ for a portfolio") and **Render** for the API itself.
 
 **Known limitation, by design of the free tier:** Render's free web service
 spins down after 15 minutes idle and has no persistent disk on that tier — so
-uploaded photos won't survive a restart. Everything else (accounts, listings,
-bookmarks — anything in Postgres) persists fine. A production version would
-swap local file storage for something like Cloudflare R2 or S3.
+uploaded photos won't survive a restart *unless* you set up Cloudflare R2 (see
+"Object storage" above, which fixes exactly this). Everything else (accounts,
+listings, bookmarks, messages — anything in Postgres) persists fine either way.
 
 ### 1. Create the database on Neon
 1. Sign up at [neon.tech](https://neon.tech) (no card required).
@@ -98,6 +176,8 @@ swap local file storage for something like Cloudflare R2 or S3.
    - `ALGORITHM` → `HS256`
    - `ACCESS_TOKEN_EXPIRE_MINUTES` → `1440`
    - `UPLOAD_DIR` → `uploads`
+   - Optionally, the five `R2_*` variables from "Object storage" above, if
+     you want uploaded photos to actually survive a restart on Render's free tier.
 5. Deploy. Render gives you a URL like `https://oson-ijara-backend.onrender.com`.
 6. Visit `<that-url>/docs` — if the Swagger UI loads, it's alive and connected.
 

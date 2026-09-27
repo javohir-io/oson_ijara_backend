@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
-from .routers import auth, properties, users
+from .routers import admin, auth, messages, properties, users
 
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 
@@ -29,6 +29,8 @@ app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads"
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(properties.router)
+app.include_router(messages.router)
+app.include_router(admin.router)
 
 
 @app.on_event("startup")

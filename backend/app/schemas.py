@@ -27,6 +27,7 @@ class UserOut(BaseModel):
     email: str
     phone: str | None = None
     avatar_url: str | None = None
+    is_admin: bool = False
     created_at: dt.datetime
 
     class Config:
@@ -118,3 +119,41 @@ class PropertyListOut(BaseModel):
 
 class SaveToggleOut(BaseModel):
     saved: bool
+
+
+# ---------- Messages / Chat ----------
+
+class MessageCreate(BaseModel):
+    receiver_id: int
+    content: str = Field(min_length=1, max_length=2000)
+    property_id: int | None = None
+
+
+class MessageOut(BaseModel):
+    id: int
+    sender_id: int
+    receiver_id: int
+    property_id: int | None = None
+    content: str
+    is_read: bool
+    created_at: dt.datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationOut(BaseModel):
+    """One row per person you've exchanged messages with, for a chat list."""
+    other_user: OwnerOut
+    last_message: MessageOut
+    unread_count: int
+
+
+# ---------- Admin ----------
+
+class AdminStatsOut(BaseModel):
+    total_users: int
+    total_properties: int
+    total_messages: int
+    total_saved: int
+

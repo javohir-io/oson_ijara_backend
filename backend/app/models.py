@@ -26,6 +26,7 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     avatar_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
 
     properties: Mapped[list["Property"]] = relationship(
@@ -91,3 +92,20 @@ class SavedProperty(Base):
 
     user: Mapped["User"] = relationship(back_populates="saved")
     property: Mapped["Property"] = relationship(back_populates="saved_by")
+
+
+class Message(Base):
+    """A single direct message between two users (optionally about a
+    particular listing, for context — e.g. tapping "Xabar" on a property)."""
+
+    __tablename__ = "messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    receiver_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    property_id: Mapped[int | None] = mapped_column(
+        ForeignKey("properties.id", ondelete="SET NULL"), nullable=True
+    )
+    content: Mapped[str] = mapped_column(Text)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, index=True)

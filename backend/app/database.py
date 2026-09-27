@@ -14,7 +14,12 @@ def _normalized_database_url(url: str) -> str:
     return url
 
 
-engine = create_engine(_normalized_database_url(settings.database_url), pool_pre_ping=True)
+_database_url = _normalized_database_url(settings.database_url)
+# SQLite (used by the test suite — see tests/conftest.py) needs this connect
+# arg when accessed from FastAPI's threadpool; harmless no-op for Postgres.
+_connect_args = {"check_same_thread": False} if _database_url.startswith("sqlite") else {}
+
+engine = create_engine(_database_url, pool_pre_ping=True, connect_args=_connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
