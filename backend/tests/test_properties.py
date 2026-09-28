@@ -30,7 +30,7 @@ def test_create_and_list_property(client, register_user):
     assert created.status_code == 201
     created_body = created.json()
     assert created_body["title"] == "Chiroyli Kvartira"
-    assert created_body["owner"]["email"] == "owner@example.com"
+    assert created_body["owner"]["full_name"] == "Test User"
 
     listing = client.get("/properties")
     assert listing.status_code == 200
