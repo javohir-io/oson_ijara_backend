@@ -10,15 +10,6 @@ JWT auth, property listings with search/filters, image uploads, bookmarks,
 real-time chat over WebSockets, and a minimal admin role, all Dockerized and
 covered by an automated test suite.
 
-**Live API:** [oson-ijara-backend.onrender.com](https://oson-ijara-backend.onrender.com)
-**Interactive docs:** [oson-ijara-backend.onrender.com/docs](https://oson-ijara-backend.onrender.com/docs)
-**Frontend repo:** [oson-ijara-app](https://github.com/javohir-io/oson-ijara-app) · **Live app:** [osonuyjoy.netlify.app](https://osonuyjoy.netlify.app)
-
-> The backend runs on a free-tier host that sleeps after 15 minutes of
-> inactivity — the first request after a while may take 10–50s to wake it up.
-
----
-
 ## Features
 
 - 🔐 **JWT authentication** — register/login, password hashing with bcrypt
